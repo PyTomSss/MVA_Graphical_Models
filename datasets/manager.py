@@ -11,7 +11,7 @@ from networkx import normalized_laplacian_matrix
 from sklearn.model_selection import train_test_split, StratifiedKFold
 
 from utils.utils import NumpyEncoder
-from .data import Data
+from .data import GraphDataData
 from .dataloader import DataLoader
 from .dataset import GraphDataset, GraphDatasetSubset
 from .sampler import RandomSampler

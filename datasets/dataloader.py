@@ -4,16 +4,12 @@ from .data import GraphBatch
 
 
 class DataLoader(torch.utils.data.DataLoader):
-    r"""Data loader which merges data objects from a
-    :class:`torch_geometric.data.dataset` to a mini-batch.
-    Args:
-        dataset (Dataset): The dataset from which to load the data.
-        batch_size (int, optional): How many samples per batch to load.
-            (default: :obj:`1`)
-        shuffle (bool, optional): If set to :obj:`True`, the data will be
-            reshuffled at every epoch. (default: :obj:`False`)
-        follow_batch (list or tuple, optional): Creates assignment batch
-            vectors for each key in the list. (default: :obj:`[]`)
+    r"""Data loader qui merge les données en mini-batchs. 
+    Prend en argument: 
+    - dataset : le dataset à charger
+    - batch_size : la taille du batch
+    - shuffle : si True, les données sont mélangées à chaque époque
+    - follow_batch : liste des clés pour lesquelles on veut créer un vecteur de batch
     """
 
     def __init__(self,
