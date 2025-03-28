@@ -6,5 +6,15 @@ PrototypeProject.egg-info/SOURCES.txt
 PrototypeProject.egg-info/dependency_links.txt
 PrototypeProject.egg-info/requires.txt
 PrototypeProject.egg-info/top_level.txt
+datasets/__init__.py
+datasets/data.py
+datasets/dataloader.py
+datasets/dataset.py
+datasets/graph.py
+datasets/manager.py
+datasets/sampler.py
+datasets/tu_utils.py
 src/__init__.py
+src/conv.py
 src/gnn.py
+src/pool.py
