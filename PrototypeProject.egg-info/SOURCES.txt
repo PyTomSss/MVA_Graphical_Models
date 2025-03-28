@@ -1,0 +1,10 @@
+LICENSE
+README.md
+setup.py
+PrototypeProject.egg-info/PKG-INFO
+PrototypeProject.egg-info/SOURCES.txt
+PrototypeProject.egg-info/dependency_links.txt
+PrototypeProject.egg-info/requires.txt
+PrototypeProject.egg-info/top_level.txt
+src/__init__.py
+src/gnn.py

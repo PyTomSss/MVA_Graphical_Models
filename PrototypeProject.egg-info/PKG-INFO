@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: PrototypeProject
+Version: 0.1.0
+License-File: LICENSE
+Requires-Dist: pandas
+Requires-Dist: torch
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: scikit-learn
+Requires-Dist: h5py
+Requires-Dist: tqdm
+Requires-Dist: seaborn
+Dynamic: license-file
+Dynamic: requires-dist

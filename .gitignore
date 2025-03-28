@@ -1,5 +1,14 @@
 ### AL ###
 #Template for AL projects for Dynamics 365 Business Central
+# Ignorer l'environnement virtuel
+my_env/
+.venv/
+
+# Ignorer les fichiers de dépendances
+__pycache__/
+*.pyc
+*.pyo
+
 #launch.json folder
 .vscode/
 #Cache folder
