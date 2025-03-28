@@ -11,11 +11,11 @@ from networkx import normalized_laplacian_matrix
 from sklearn.model_selection import train_test_split, StratifiedKFold
 
 from utils.utils import NumpyEncoder
-from .data import GraphData
-from .dataloader import DataLoader
-from .dataset import GraphDataset, GraphDatasetSubset
-from .sampler import RandomSampler
-from .tu_utils import parse_tu_data, create_graph_from_tu_data
+from datasets.data import GraphData
+from datasets.dataloader import DataLoader
+from datasets.dataset import GraphDataset, GraphDatasetSubset
+from datasets.sampler import RandomSampler
+from datasets.tu_utils import parse_tu_data, create_graph_from_tu_data
 
 
 class GraphDatasetManager:
@@ -209,18 +209,25 @@ class GraphDatasetManager:
 
 
 class TUDatasetManager(GraphDatasetManager):
+    # URL = "https://ls11-www.cs.tu-dortmund.de/people/morris/graphkerneldatasets/{name}.zip"
+    URL = "https://www.chrsmrrs.com/graphkerneldatasets/{name}.zip"
     classification = True
 
-    def __init__(self, name, local_data_dir, *args, **kwargs):
-        super().__init__(name, *args, **kwargs)
-        self.local_data_dir = local_data_dir  # folder où on stocke des données
-        self.raw_dir = Path(self.local_data_dir) if self.local_data_dir else self.raw_dir
+    def _download(self):
+        url = self.URL.format(name=self.name)
+        response = requests.get(url)
+        stream = io.BytesIO(response.content)
+        with zipfile.ZipFile(stream) as z:
+            for fname in z.namelist():
+                z.extract(fname, self.raw_dir)
 
     def _process(self):
-        processed_file = self.processed_dir / f"{self.name}.pt"
-        
         graphs_data, num_node_labels, num_edge_labels = parse_tu_data(self.name, self.raw_dir)
         targets = graphs_data.pop("graph_labels")
+
+        # dynamically set maximum num nodes (useful if using dense batching, e.g. diffpool)
+        max_num_nodes = max([len(v) for (k, v) in graphs_data['graph_nodes'].items()])
+        setattr(self, 'max_num_nodes', max_num_nodes)
 
         dataset = []
         for i, target in enumerate(targets, 1):
@@ -236,8 +243,7 @@ class TUDatasetManager(GraphDatasetManager):
                 data = self._to_data(G)
                 dataset.append(data)
 
-        torch.save(dataset, processed_file)
-
+        torch.save(dataset, self.processed_dir / f"{self.name}.pt")
 
     def _to_data(self, G):
         datadict = {}
@@ -336,7 +342,6 @@ class TUDatasetManager(GraphDatasetManager):
 
     def _precompute_assignments(self):
         pass
-
 
 class DD(TUDatasetManager):
     name = "DD"
