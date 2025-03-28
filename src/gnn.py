@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from conv import GNNLayer
-from pool import PoolingLayer
+from src.conv import GNNLayer
+from src.pool import PoolingLayer
 
 
 class GNN(nn.Module):
-    def __init__(self, in_features, embedding_dim, out_features, num_layers=2, conv_type="gcn", task="node_prediction", pool_type="mean"):
+    def __init__(self, in_features, embedding_dim, out_features, num_layers=2, conv_type="gcn", task="classify_MNIST", pool_type="mean"):
         super(GNN, self).__init__()
         self.num_layers = num_layers
         self.task = task
@@ -34,13 +34,15 @@ class GNN(nn.Module):
             self.final_layer = nn.Linear(out_features * 2, 1)  
         elif task == "graph_prediction":
             self.final_layer = nn.Linear(out_features, 1)  # Prédiction d'un seul score pour le graphe
+        elif task == "classify_MNIST":
+            self.final_layer = torch.nn.Linear(out_features, 10)  # 10 classes pour MNIST
         else:
             raise ValueError(f"Unknown task type {task}")
 
     def forward(self, x, adj_matrix=None):
         # Initial features
         h = x
-
+        
         # Apply layers
         for i in range(self.num_layers):
             h_neighbors = self.aggregate_neighbors(h, adj_matrix)
@@ -56,9 +58,12 @@ class GNN(nn.Module):
         elif self.task == "graph_prediction":
             graph_embedding = self.pooling(h)  # Agrégation globale du graphe
             output = self.final_layer(graph_embedding)  # Un seul score pour le graphe
+        elif self.task == "classify_MNIST":
+            graph_embedding = self.pooling(h)
+            output = self.final_layer(graph_embedding)
+
         return output
         
-
     def aggregate_neighbors(self, h, adj_matrix):
         # Aggregate neighboring nodes' features
         neighbors = torch.matmul(adj_matrix, h)
