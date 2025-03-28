@@ -5,9 +5,9 @@ from src.conv import GNNLayer
 from src.pool import PoolingLayer
 
 
-class GNN(nn.Module):
-    def __init__(self, in_features, embedding_dim, out_features, num_layers=2, conv_type="gcn", task="classify_MNIST", pool_type="mean"):
-        super(GNN, self).__init__()
+class GNNClassifier(nn.Module):
+    def __init__(self, in_features, embedding_dim, out_features, num_layers=2, conv_type="gcn", task="classify_IMBD", pool_type="mean"):
+        super(GNNClassifier, self).__init__()
         self.num_layers = num_layers
         self.task = task
         self.conv_type = conv_type
@@ -34,8 +34,8 @@ class GNN(nn.Module):
             self.final_layer = nn.Linear(out_features * 2, 1)  
         elif task == "graph_prediction":
             self.final_layer = nn.Linear(out_features, 1)  # Prédiction d'un seul score pour le graphe
-        elif task == "classify_MNIST":
-            self.final_layer = torch.nn.Linear(out_features, 10)  # 10 classes pour MNIST
+        elif task == "classify_IMBD":
+            self.final_layer = torch.nn.Linear(out_features, 2)  # 2 classes pour MNIST
         else:
             raise ValueError(f"Unknown task type {task}")
 
@@ -58,7 +58,7 @@ class GNN(nn.Module):
         elif self.task == "graph_prediction":
             graph_embedding = self.pooling(h)  # Agrégation globale du graphe
             output = self.final_layer(graph_embedding)  # Un seul score pour le graphe
-        elif self.task == "classify_MNIST":
+        elif self.task == "classify_IMBD":
             graph_embedding = self.pooling(h)
             output = self.final_layer(graph_embedding)
 
@@ -78,17 +78,3 @@ class GNN(nn.Module):
                     edge_features.append(torch.cat([h[i], h[j]], dim=0))
         return torch.stack(edge_features)
 
-# Exemple d'utilisation du modèle
-if __name__ == "__main__":
-    # Exemple de caractéristiques de nœuds et matrice d'adjacence
-    node_features = torch.randn(5, 10)  # 5 nœuds avec 10 caractéristiques chacun
-    adj_matrix = torch.tensor([[0, 1, 0, 1, 0],
-                               [1, 0, 1, 0, 0],
-                               [0, 1, 0, 1, 1],
-                               [1, 0, 1, 0, 0],
-                               [0, 0, 1, 0, 0]], dtype=torch.float)
-
-    # Initialiser le GNN
-    model = GNN(in_features=10, embedding_dim=16, out_features=8, num_layers=3, conv_type="gcn", task="node_prediction")
-    output = model(node_features, adj_matrix)
-    print(output)
