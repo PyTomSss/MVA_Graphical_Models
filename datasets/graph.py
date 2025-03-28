@@ -1,7 +1,5 @@
 import networkx as nx
-
 import torch
-from torch_geometric.utils import dense_to_sparse
 
 
 class Graph(nx.Graph):
@@ -12,8 +10,8 @@ class Graph(nx.Graph):
         self.v_plus = None
 
     def get_edge_index(self):
-        adj = torch.Tensor(nx.to_numpy_array(self))
-        edge_index, _ = dense_to_sparse(adj)
+        """remplace la méthode de PyG "dense_to_sparse" en utilisant directement les arêtes du graphe"""
+        edge_index = torch.tensor(list(self.edges), dtype=torch.long).t().contiguous()
         return edge_index
 
     def get_edge_attr(self):
@@ -21,58 +19,52 @@ class Graph(nx.Graph):
         for _, _, edge_attrs in self.edges(data=True):
             data = []
 
-            if edge_attrs["label"] is not None:
+            if "label" in edge_attrs and edge_attrs["label"] is not None:
                 data.extend(edge_attrs["label"])
 
-            if edge_attrs["attrs"] is not None:
+            if "attrs" in edge_attrs and edge_attrs["attrs"] is not None:
                 data.extend(edge_attrs["attrs"])
 
-            features.append(data)
-        return torch.Tensor(features)
+            features.append(data if data else [0])  # Si aucune feature, ajoute une valeur par défaut
+        return torch.tensor(features, dtype=torch.float)
 
     def get_x(self, use_node_attrs=False, use_node_degree=False, use_one=False):
+        
         features = []
         for node, node_attrs in self.nodes(data=True):
             data = []
 
-            if node_attrs["label"] is not None:
+            if "label" in node_attrs and node_attrs["label"] is not None:
                 data.extend(node_attrs["label"])
 
-            if use_node_attrs and node_attrs["attrs"] is not None:
+            if use_node_attrs and "attrs" in node_attrs and node_attrs["attrs"] is not None:
                 data.extend(node_attrs["attrs"])
 
             if use_node_degree:
-                data.extend([self.degree(node)])
+                data.append(self.degree(node))
 
             if use_one:
-                data.extend([1])
+                data.append(1)
             
-            features.append(data)
-        
-        return torch.Tensor(features)
+            features.append(data if data else [0])  # Valeur par défaut si aucun attribut
+        return torch.tensor(features, dtype=torch.float)
 
     def get_target(self, classification=True):
-        if classification:
-            return torch.LongTensor([self.target])
-
-        return torch.Tensor([self.target])
+        
+        return torch.tensor([self.target], dtype=torch.long if classification else torch.float)
 
     @property
     def has_edge_attrs(self):
-        _, _, edge_attrs = list(self.edges(data=True))[0]
-        return edge_attrs["attrs"] is not None
+        return any("attrs" in edge_attrs and edge_attrs["attrs"] is not None for _, _, edge_attrs in self.edges(data=True))
 
     @property
     def has_edge_labels(self):
-        _, _, edge_attrs = list(self.edges(data=True))[0]
-        return edge_attrs["label"] is not None
+        return any("label" in edge_attrs and edge_attrs["label"] is not None for _, _, edge_attrs in self.edges(data=True))
 
     @property
     def has_node_attrs(self):
-        _, node_attrs = list(self.node(data=True))[0]
-        return node_attrs["attrs"] is not None
+        return any("attrs" in node_attrs and node_attrs["attrs"] is not None for _, node_attrs in self.nodes(data=True))
 
     @property
     def has_node_labels(self):
-        _, node_attrs = list(self.node(data=True))[0]
-        return node_attrs["label"] is not None
+        return any("label" in node_attrs and node_attrs["label"] is not None for _, node_attrs in self.nodes(data=True))

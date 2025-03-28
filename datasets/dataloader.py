@@ -1,6 +1,6 @@
 import torch.utils.data
 
-from .data import Batch
+from .data import GraphBatch
 
 
 class DataLoader(torch.utils.data.DataLoader):
