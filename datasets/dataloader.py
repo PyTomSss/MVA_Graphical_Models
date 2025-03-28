@@ -22,6 +22,6 @@ class DataLoader(torch.utils.data.DataLoader):
             dataset,
             batch_size,
             shuffle,
-            collate_fn=lambda data_list: Batch.from_data_list(
+            collate_fn=lambda data_list: GraphBatch.from_data_list(
                 data_list, follow_batch),
             **kwargs)

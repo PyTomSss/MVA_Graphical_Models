@@ -11,7 +11,7 @@ from networkx import normalized_laplacian_matrix
 from sklearn.model_selection import train_test_split, StratifiedKFold
 
 from utils.utils import NumpyEncoder
-from .data import GraphDataData
+from .data import GraphData
 from .dataloader import DataLoader
 from .dataset import GraphDataset, GraphDatasetSubset
 from .sampler import RandomSampler
@@ -265,7 +265,7 @@ class TUDatasetManager(GraphDatasetManager):
         target = G.get_target(classification=self.classification)
         datadict.update(y=target)
 
-        data = Data(**datadict)
+        data = GraphData(**datadict)
 
         return data
 
