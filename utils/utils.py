@@ -1,7 +1,7 @@
 import json
 import networkx as nx
-from torch_geometric.utils import to_networkx
-from torch_geometric.data import Data
+#from torch_geometric.utils import to_networkx
+#from torch_geometric.data import Data
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
