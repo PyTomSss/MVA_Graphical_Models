@@ -28,16 +28,16 @@ def get_max_num_nodes(dataset_str):
         max_num_nodes = max(max_num_nodes, d.num_nodes)
     return max_num_nodes
 
-def visualise_graph(index, dataset):
-    """
+"""def visualise_graph(index, dataset):
+    ""
     Idea: Visualise 
 
     Args:
         index (int): index of the graph in the dataset we want to visualise
         dataset (IMDB or DD): dataset of graphs
-    """
+    ""
 
-    data = Data(x=dataset[index].x, edge_index=dataset[index].edge_index)
+    data = GraphData(x=dataset[index].x, edge_index=dataset[index].edge_index)
     graph = to_networkx(data, to_undirected=True)
 
     # Visualisation
@@ -45,6 +45,7 @@ def visualise_graph(index, dataset):
     nx.draw(graph, node_size=30, with_labels=False)
     plt.title(f"Graph Visualization - Index {index}")  # Add title here
     plt.show()
+"""
 
 
 def get_adjacency_and_features(graph_data):
