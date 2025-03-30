@@ -9,7 +9,6 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
-from torchsummary import summary
 
 from src.models import GCN, GAT, GraphDenseNet
 
@@ -34,7 +33,7 @@ params_list = {"model_type": "GCN",
                "graph_node_subsampling": True, # TRUE: removing node randomly to subsampling and augmentation of graph dataset \n'+
                 # FALSE: removing edge randomly to subsampling and augmentation of graph dataset
                "graph_subsampling_rate": 0.2, # graph subsampling rate
-               "dataset": "IMBD", 
+               "dataset": "IMDB", 
                "pooling_type": "mean", 
                "seed": 42,
                "n_folds": 10, 
@@ -48,12 +47,13 @@ params_list = {"model_type": "GCN",
                "num_agg_layer": 2, # the number of graph aggregation layers
                "hidden_agg_lay_size": 64, # size of hidden graph aggregation layer
                "fc_hidden_size": 128, # size of fully-connected layer after readout
-               "rw": "NodeRandomWalkNet",
+               "threads":10, # how many subprocesses to use for data loading
+               "random_walk":True,
                "walk_length": 20, # walk length of random walk, 
                "num_walk": 10, # num of random walk
                "p": 0.65, # Possibility to return to the previous vertex, how well you navigate around
                "q": 0.35, # Possibility of moving away from the previous vertex, how well you are exploring new places
-               "print_logger": 10 # printing rate
+               "print_logger": 10  # printing rate
                }
 
 
@@ -68,7 +68,6 @@ class Training:
 
       self.datareader = self.get_dataset()
       self.model = self.get_model()
-      self.random_walk = (self.params["rw"] is not None)
 
       self.acc_folds, self.time_folds = [], []
 
@@ -87,7 +86,7 @@ class Training:
                           rnd_state=np.random.RandomState(self.params["seed"]),
                           folds=self.params["n_folds"],           
                           use_cont_node_attr=False,
-                          random_walk=self.random_walk,
+                          random_walk=self.params["random_walk"],
                           num_walk=self.params["num_walk"],
                           walk_length=self.params["walk_length"],
                           p=self.params["p"],
@@ -100,37 +99,37 @@ class Training:
     def get_model(self):
         
       # Build graph classification model
-      if params_list["model_type"] == 'GCN':
+      if self.params["model_type"] == 'GCN':
           
         model = GCN(n_feat=self.datareader.data['features_dim'],
                 n_class=self.datareader.data['n_classes'],
-                n_layer=params_list['n_agg_layer'],
-                agg_hidden=params_list['agg_hidden'],
-                fc_hidden=params_list['fc_hidden'],
-                dropout=params_list['dropout'],
-                readout=params_list['readout_name'],
+                n_layer=self.params['num_agg_layer'],
+                agg_hidden=self.params['hidden_agg_lay_size'],
+                fc_hidden=self.params['fc_hidden_size'],
+                dropout=self.params['dropout'],
+                pool_type=self.params['pooling_type'],
                 device=self.device).to(self.device)
         
-      elif params_list["model_type"] == 'GAT':
+      elif self.params["model_type"] == 'GAT':
           
         model = GAT(n_feat=self.datareader.data['features_dim'],
                 n_class=self.datareader.data['n_classes'],
-                n_layer=params_list['n_agg_layer'],
-                agg_hidden=params_list['agg_hidden'],
-                fc_hidden=params_list['fc_hidden'],
-                dropout=params_list['dropout'],
-                readout=params_list['readout_name'],
+                n_layer=self.params['num_agg_layer'],
+                agg_hidden=self.params['hidden_agg_lay_size'],
+                fc_hidden=self.params['fc_hidden_size'],
+                dropout=self.params['dropout'],
+                pool_type=self.params['pooling_type'],
                 device=self.device).to(self.device)
           
-      elif params_list["model_type"] == 'GraphDenseNet':
+      elif self.params["model_type"] == 'GraphDenseNet':
           
         model = GraphDenseNet(n_feat=self.datareader.data['features_dim'],
                 n_class=self.datareader.data['n_classes'],
-                n_layer=params_list['n_agg_layer'],
-                agg_hidden=params_list['agg_hidden'],
-                fc_hidden=params_list['fc_hidden'],
-                dropout=params_list['dropout'],
-                readout=self.params["pooling_type"],
+                n_layer=self.params['num_agg_layer'],
+                agg_hidden=self.params['hidden_agg_lay_size'],
+                fc_hidden=self.params['fc_hidden_size'],
+                dropout=self.params['dropout'],
+                pool_type=self.params["pooling_type"],
                 device=self.device).to(self.device)
           
       return model
@@ -152,7 +151,7 @@ class Training:
           gdata = GraphData(fold_id=fold_id,
                             datareader=self.datareader,
                             split=split,
-                            random_walk=self.random_walk,
+                            random_walk=self.params["random_walk"],
                             n_graph_subsampling=self.params["n_graph_subsampling"],
                             graph_node_subsampling=self.params["graph_node_subsampling"],
                             graph_subsampling_rate=self.params["graph_subsampling_rate"])
@@ -162,7 +161,7 @@ class Training:
           gdata = GraphData(fold_id=fold_id,
                             datareader=self.datareader,
                             split=split,
-                            random_walk=self.random_walk,
+                            random_walk=self.params["random_walk"],
                             n_graph_subsampling=0,
                             graph_node_subsampling=self.params["graph_node_subsampling"],
                             graph_subsampling_rate=self.params["graph_subsampling_rate"])  
@@ -183,11 +182,11 @@ class Training:
 
       optimizer = optim.Adam(
                       filter(lambda p: p.requires_grad, self.model.parameters()),
-                      lr=params_list["lr"],
-                      weight_decay=params_list["weight_decay"],
+                      lr=self.params["lr"],
+                      weight_decay=self.params["weight_decay"],
                       betas=(0.5, 0.999))
   
-      scheduler = lr_scheduler.MultiStepLR(self.optimizer, [20, 30], gamma=0.1)
+      scheduler = lr_scheduler.MultiStepLR(optimizer, [20, 30], gamma=0.1)
         
       return loaders, optimizer, scheduler
 
@@ -252,7 +251,7 @@ class Training:
 
       for fold_id in range(self.params["n_folds"]):
          
-        loaders, optimizer, scheduler = self.loaders_train_test_setup()
+        loaders, optimizer, scheduler = self.loaders_train_test_setup(fold_id)
 
         total_time = 0
 
