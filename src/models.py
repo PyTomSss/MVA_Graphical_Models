@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from layer import GraphConvolutionLayer, GraphAttentionLayer, GraphDenseNetLayer
-from pooling import pooling_op
+from src.layer import GraphConvolutionLayer, GraphAttentionLayer, GraphDenseNetLayer
+from src.pooling import pooling_op
 
 
 class GCN(nn.Module):

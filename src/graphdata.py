@@ -5,6 +5,20 @@ import numpy as np
 import os 
 import random
 import matplotlib.pyplot as plt
+import subprocess
+import sys
+
+# Vérifier si le module 'node2vec' est installé
+
+try:
+    import node2vec
+except ImportError:
+    # Si le module n'est pas trouvé, essayer de l'installer via pip
+    print("Le module 'node2vec' n'est pas installé. Installation en cours...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "node2vec"])
+    import node2vec  # Réessayer d'importer après l'installation
+
+# Maintenant, tu peux utiliser node2vec sans souci
 from node2vec import Node2Vec
 
 
@@ -471,7 +485,7 @@ class DataReader():
 
         for adj in adj_list:
             sub_list = []
-            for feature in nx.from_numpy_matrix(np.array(adj)).degree():
+            for feature in nx.from_numpy_array(np.array(adj)).degree():
                 sub_list.append(feature[1])
             node_features_list.append(np.array(sub_list))
 
