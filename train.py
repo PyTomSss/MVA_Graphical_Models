@@ -13,330 +13,269 @@ from torchsummary import summary
 
 from src.models import GCN, GAT, GraphDenseNet
 
-from datasets.graph_data_reader import DataReader, GraphData
+from src.graphdata import DataReader, GraphData
+
+
+'''
+Possible values: 
 
 model_list = ['GCN', 'GAT', 'GraphDenseNet']
 dataset_list = ['IMDB-BINARY', 'DD']
 readout_list = ['max', 'avg', 'sum']
 
+'''
+
 parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter)
 
-# Target model & dataset & readout param
-parser.add_argument('--model_list', nargs='+', required=True,
-                    help='target train model list \n'+
-                    'available model: ' + str(model_list)
-                     + '\nable to choose multiple models \n'+
-                     'ALL: choose all available model')
-parser.add_argument('--dataset_list', nargs='+', required=True,
-                    help='target graph classification dataset list \n'+
-                    'available dataset: ' + str(dataset_list)
-                     + '\nable to choose multiple datasets \n'+
-                     'ALL: choose all available dataset')
-parser.add_argument('--readout_list', nargs='+', required=True,
-                    help='target readout method list \n'+
-                    'available readout: ' + str(readout_list)
-                     + '\nable to choose multiple readout methods \n'+
-                     'ALL: choose all available readout')
-                     
-# Dataset param
-parser.add_argument('--node_att', default='FALSE',
-                    help='use additional float valued node attributes available in some datasets or not\n'+
-                    'TRUE/FALSE')
-parser.add_argument('--seed', type=int, default=111,
-                    help='random seed')
-parser.add_argument('--n_folds', type=int, default=10,
-                    help='the number of folds in 10-cross validation')
-parser.add_argument('--threads', type=int, default=0,
-                    help='how many subprocesses to use for data loading \n'+
-                    'default value 0 means that the data will be loaded in the main process')
+# DEFAULT PARAMS 
 
-# Graph data subsampling
-parser.add_argument('--n_graph_subsampling', type=int, default=0,
-                    help='the number of running graph subsampling each train graph data\n'+
-                    'run subsampling 5 times: increasing graph data 5 times')
-parser.add_argument('--graph_node_subsampling', default='TRUE',
-                    help='TRUE: removing node randomly to subsampling and augmentation of graph dataset \n'+
-                    'FALSE: removing edge randomly to subsampling and augmentation of graph dataset')
-parser.add_argument('--graph_subsampling_rate', type=float, default=0.2,
-                    help='graph subsampling rate')
+params_list = {"model_type": "GCN",  
+               "n_graph_subsampling": 0, # the number of running graph subsampling each train graph data run subsampling 5 times: increasing graph data 5 times
+               "graph_node_subsampling": True, # TRUE: removing node randomly to subsampling and augmentation of graph dataset \n'+
+                # FALSE: removing edge randomly to subsampling and augmentation of graph dataset
+               "graph_subsampling_rate": 0.2, # graph subsampling rate
+               "dataset": "IMBD", 
+               "pooling_type": "mean", 
+               "seed": 42,
+               "n_folds": 10, 
+               "cuda": True, 
+               "lr": 0.001, 
+               "epochs": 50, 
+               "weight_decay":5e-4,
+               "batch_size": 32, 
+               "dropout": 0, # dropout rate of layer
+               "num_lay": 5, 
+               "num_agg_layer": 2, # the number of graph aggregation layers
+               "hidden_agg_lay_size": 64, # size of hidden graph aggregation layer
+               "fc_hidden_size": 128, # size of fully-connected layer after readout
+               "rw": "NodeRandomWalkNet",
+               "walk_length": 20, # walk length of random walk, 
+               "num_walk": 10, # num of random walk
+               "p": 0.65, # Possibility to return to the previous vertex, how well you navigate around
+               "q": 0.35, # Possibility of moving away from the previous vertex, how well you are exploring new places
+               "print_logger": 10 # printing rate
+               }
 
-# Learning param
-parser.add_argument('--cuda', default='TRUE',
-                    help='use cuda device in train process or not\n'+
-                    'TRUE/FALSE')
-parser.add_argument('--batch_size', type=int, default=32,
-                    help='batch size of data')                  
-parser.add_argument('--epochs', type=int, default=50,
-                    help='train epochs')
-parser.add_argument('--learning_rate', type=float, default=0.001,
-                    help='learning rate of optimizer')
-parser.add_argument('--weight_decay', type=float, default=5e-4,
-                    help='weight decay of optimizer')
-parser.add_argument('--log_interval', type=int, default=10,
-                    help='print log interval in train process')
-parser.add_argument('--save_model', default='TRUE',
-                    help='save model or not\n'+
-                    'TRUE/FALSE')
 
-# Model param
-parser.add_argument('--n_agg_layer', type=int, default=2,
-                    help='the number of graph aggregation layers')
-parser.add_argument('--agg_hidden', type=int, default=64,
-                    help='size of hidden graph aggregation layer')
-parser.add_argument('--fc_hidden', type=int, default=128,
-                    help='size of fully-connected layer after readout')
-parser.add_argument('--dropout', type=float, default=0,
-                    help='dropout rate of layer')
+class Training:
+    def __init__(self, params):
+      self.params = params 
 
-# NodeRandomWalkNet param
-parser.add_argument('--walk_length', type=int, default=20,
-                    help='walk length of random walk')
-parser.add_argument('--num_walk', type=int, default=10,
-                    help='num_walk of random walk')
-parser.add_argument('--p', type=float, default=0.65,
-                    help='Possibility to return to the previous vertex, how well you navigate around')
-parser.add_argument('--q', type=float, default=0.35,
-                    help='Possibility of moving away from the previous vertex, how well you are exploring new places')
+      if self.params["cuda"] and torch.cuda.is_available():
+          self.device = "cuda:0"
+      else: 
+          self.device = "cpu"
 
-# ExpandedSpatialGraphEmbeddingNet param
-parser.add_argument('--n_spatial_graph_embedding_model_layer', type=int, default=1,
-                    help='the number of spatial graph embedding model layers')
-parser.add_argument('--n_node_random_walk_model_layer', type=int, default=1,
-                    help='the number of node random walk model layers')
-parser.add_argument('--node_random_walk_model_name', default='LSTM',
-                    help='node random walk model name\n'+
-                    'LSTM/GRU')
-#parser.add_argument('--freeze_layer', default='FALSE',
-#                    help='the number of graph aggregation layers')
-#parser.add_argument('--fc_layer_type', default='A',
-#                    help='fully-connected layer type of ExpandedSpatialGraphEmbeddingNet')
-#parser.add_argument('--concat_dropout', type=float, default=0.0,
-#                    help='dropout rate of concat layer of ExpandedSpatialGraphEmbeddingNet')
+      self.datareader = self.get_dataset()
+      self.model = self.get_model()
+      self.random_walk = (self.params["rw"] is not None)
 
-args = parser.parse_args()
+      self.acc_folds, self.time_folds = [], []
 
-args.cuda = (args.cuda.upper()=='TRUE')
-args.save_model = (args.save_model.upper()=='TRUE')
-args.node_att = (args.node_att.upper()=='TRUE')
-args.graph_node_subsampling = (args.graph_node_subsampling.upper()=='TRUE')
-#args.freeze_layer = (args.freeze_layer.upper()=='TRUE')
+      self.loss_fn = F.cross_entropy 
 
-# Build random walk or not (if mode == NodeRandomWalkNet or ExpandedSpatialGraphEmbeddingNet)
-random_walk = ('NodeRandomWalkNet' in args.model_list or 'ExpandedSpatialGraphEmbeddingNet' in args.model_list or 'ALL' in args.model_list)
+    
+    def get_dataset(self):
+          
+      # Build graph data reader: IMDB-BINARY, IMDB-MULTI, ...
+      if self.params["dataset"] == "IMDB":
+          self.data_dir = 'data/IMDB-BINARY/raw/IMDB-BINARY'
+      elif self.params["dataset"] == "DD":
+          self.data_dir = "data/DD/raw/DD"
+          
+      datareader = DataReader(data_dir=self.data_dir,
+                          rnd_state=np.random.RandomState(self.params["seed"]),
+                          folds=self.params["n_folds"],           
+                          use_cont_node_attr=False,
+                          random_walk=self.random_walk,
+                          num_walk=self.params["num_walk"],
+                          walk_length=self.params["walk_length"],
+                          p=self.params["p"],
+                          q=self.params["q"],
+                          node2vec_hidden=self.params["hidden_agg_lay_size"]
+                          )
+      
+      return datareader
+    
+    def get_model(self):
+        
+      # Build graph classification model
+      if params_list["model_type"] == 'GCN':
+          
+        model = GCN(n_feat=self.datareader.data['features_dim'],
+                n_class=self.datareader.data['n_classes'],
+                n_layer=params_list['n_agg_layer'],
+                agg_hidden=params_list['agg_hidden'],
+                fc_hidden=params_list['fc_hidden'],
+                dropout=params_list['dropout'],
+                readout=params_list['readout_name'],
+                device=self.device).to(self.device)
+        
+      elif params_list["model_type"] == 'GAT':
+          
+        model = GAT(n_feat=self.datareader.data['features_dim'],
+                n_class=self.datareader.data['n_classes'],
+                n_layer=params_list['n_agg_layer'],
+                agg_hidden=params_list['agg_hidden'],
+                fc_hidden=params_list['fc_hidden'],
+                dropout=params_list['dropout'],
+                readout=params_list['readout_name'],
+                device=self.device).to(self.device)
+          
+      elif params_list["model_type"] == 'GraphDenseNet':
+          
+        model = GraphDenseNet(n_feat=self.datareader.data['features_dim'],
+                n_class=self.datareader.data['n_classes'],
+                n_layer=params_list['n_agg_layer'],
+                agg_hidden=params_list['agg_hidden'],
+                fc_hidden=params_list['fc_hidden'],
+                dropout=params_list['dropout'],
+                readout=self.params["pooling_type"],
+                device=self.device).to(self.device)
+          
+      return model
 
-# Choose target graph classification model
-if 'ALL' in args.model_list:
-  args.model_list = model_list
-else:
-  for model in args.model_list:
-    if not model in model_list:
-      print('There are not available models in the target graph classification model list')
-      sys.exit()
 
-print('Target model list:', args.model_list)
+    def loaders_train_test_setup(self, fold_id):
+      
+      # STEP 1: create test and train fold, get train and test loaders 
 
-# Choose target dataset
-if 'ALL' in args.dataset_list:
-  args.dataset_list = dataset_list
-else:
-  for dataset in args.dataset_list:
-    if not dataset in dataset_list:
-      print('There are not available datasets in the target graph dataset list')
-      sys.exit()
+      print(f"Fold number: {fold_id}")
 
-print('Target dataset list:', args.dataset_list)
+      loaders = []
 
-print('Target readout list:', args.readout_list)
+      for split in ['train', 'test']:
 
-# Choose device
-if args.cuda and torch.cuda.is_available():
-  device = 'cuda'
-else:
-  device = 'cpu'
+        # Build GDATA object
+
+        if split == 'train':
+          gdata = GraphData(fold_id=fold_id,
+                            datareader=self.datareader,
+                            split=split,
+                            random_walk=self.random_walk,
+                            n_graph_subsampling=self.params["n_graph_subsampling"],
+                            graph_node_subsampling=self.params["graph_node_subsampling"],
+                            graph_subsampling_rate=self.params["graph_subsampling_rate"])
+          
+        else:
   
-print('Using device in train process:', device)
+          gdata = GraphData(fold_id=fold_id,
+                            datareader=self.datareader,
+                            split=split,
+                            random_walk=self.random_walk,
+                            n_graph_subsampling=0,
+                            graph_node_subsampling=self.params["graph_node_subsampling"],
+                            graph_subsampling_rate=self.params["graph_subsampling_rate"])  
+      
+        # Build graph data pytorch loader
+        loader = torch.utils.data.DataLoader(gdata, 
+                                            batch_size=self.params["batch_size"],
+                                            shuffle=split.find('train') >= 0,
+                                            num_workers=self.params["threads"],
+                                            drop_last=False)
+        loaders.append(loader)
+      
+      # Total trainable param
+      c = 0
+      for p in filter(lambda p: p.requires_grad, self.model.parameters()):
+          c += p.numel()
+      print('N trainable parameters:', c)
 
-for dataset_name in args.dataset_list:
-    print('-'*50)
-    
-    print('Target dataset:', dataset_name)
-    # Build graph data reader: IMDB-BINARY, IMDB-MULTI, ...
-    datareader = DataReader(data_dir='./datasets/%s/' % dataset_name.upper(),
-                        rnd_state=np.random.RandomState(args.seed),
-                        folds=args.n_folds,           
-                        use_cont_node_attr=False,
-                        random_walk=random_walk,
-                        num_walk=args.num_walk,
-                        walk_length=args.walk_length,
-                        p=args.p,
-                        q=args.q,
-                        node2vec_hidden=args.agg_hidden
-                        )
-    
-    for model_name in args.model_list:
-      for i, readout_name in enumerate(args.readout_list):
-        print('-'*25)
+      optimizer = optim.Adam(
+                      filter(lambda p: p.requires_grad, self.model.parameters()),
+                      lr=params_list["lr"],
+                      weight_decay=params_list["weight_decay"],
+                      betas=(0.5, 0.999))
+  
+      scheduler = lr_scheduler.MultiStepLR(self.optimizer, [20, 30], gamma=0.1)
         
-        # Build graph classification model
-        if model_name == 'GCN':
-            model = GCN(n_feat=datareader.data['features_dim'],
-                    n_class=datareader.data['n_classes'],
-                    n_layer=args.n_agg_layer,
-                    agg_hidden=args.agg_hidden,
-                    fc_hidden=args.fc_hidden,
-                    dropout=args.dropout,
-                    readout=readout_name,
-                    device=device).to(device)
-        elif model_name == 'GAT':
-            model = GAT(n_feat=datareader.data['features_dim'],
-                    n_class=datareader.data['n_classes'],
-                    n_layer=args.n_agg_layer,
-                    agg_hidden=args.agg_hidden,
-                    fc_hidden=args.fc_hidden,
-                    dropout=args.dropout,
-                    readout=readout_name,
-                    device=device).to(device)
-        elif model_name == 'GraphDenseNet':
-            model = GraphDenseNet(n_feat=datareader.data['features_dim'],
-                    n_class=datareader.data['n_classes'],
-                    n_layer=args.n_agg_layer,
-                    agg_hidden=args.agg_hidden,
-                    fc_hidden=args.fc_hidden,
-                    dropout=args.dropout,
-                    readout=readout_name,
-                    device=device).to(device)
+      return loaders, optimizer, scheduler
 
-                                                         
-        print(model)
-        print('Readout:', readout_name)
-        
-        # Train & test each fold
-        acc_folds = []
-        time_folds = []
-        for fold_id in range(args.n_folds):
-            print('\nFOLD', fold_id)
-            loaders = []
-            for split in ['train', 'test']:
-                # Build GDATA object
-                if split == 'train':
-                    gdata = GraphData(fold_id=fold_id,
-                                       datareader=datareader,
-                                       split=split,
-                                       random_walk=random_walk,
-                                       n_graph_subsampling=args.n_graph_subsampling,
-                                       graph_node_subsampling=args.graph_node_subsampling,
-                                       graph_subsampling_rate=args.graph_subsampling_rate)
-                else:
-                    gdata = GraphData(fold_id=fold_id,
-                                       datareader=datareader,
-                                       split=split,
-                                       random_walk=random_walk,
-                                       n_graph_subsampling=0,
-                                       graph_node_subsampling=args.graph_node_subsampling,
-                                       graph_subsampling_rate=args.graph_subsampling_rate)      
-                
-                # Build graph data pytorch loader
-                loader = torch.utils.data.DataLoader(gdata, 
-                                                     batch_size=args.batch_size,
-                                                     shuffle=split.find('train') >= 0,
-                                                     num_workers=args.threads,
-                                                     drop_last=False)
-                loaders.append(loader)
-            
-            # Total trainable param
-            c = 0
-            for p in filter(lambda p: p.requires_grad, model.parameters()):
-                c += p.numel()
-            print('N trainable parameters:', c)
-            
-            # Optimizer
-            optimizer = optim.Adam(
-                        filter(lambda p: p.requires_grad, model.parameters()),
-                        lr=args.learning_rate,
-                        weight_decay=args.weight_decay,
-                        betas=(0.5, 0.999))
-    
-            scheduler = lr_scheduler.MultiStepLR(optimizer, [20, 30], gamma=0.1)
-            
-            # Train function
-            def train(train_loader):
-                total_time_iter = 0
-                model.train()
-                start = time.time()
-                train_loss, n_samples = 0, 0
-                for batch_idx, data in enumerate(train_loader):
-                    for i in range(len(data)):
-                        data[i] = data[i].to(device)
-                    optimizer.zero_grad()
-                    if model_name == 'ExpandedSpatialGraphEmbeddingNet':
-                        output = model(data, fold_id, 'train')
-                    else:
-                        output = model(data)
-                    loss = loss_fn(output, data[4])
-                    loss.backward()
-                    optimizer.step()
-                    time_iter = time.time() - start
-                    total_time_iter += time_iter
-                    train_loss += loss.item() * len(output)
-                    n_samples += len(output)
-                    if batch_idx % args.log_interval == 0 or batch_idx == len(train_loader) - 1:
-                        print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} (avg: {:.6f}) \tsec/iter: {:.4f}'.format(
-                            epoch, n_samples, len(train_loader.dataset),
-                            100. * (batch_idx + 1) / len(train_loader), loss.item(), train_loss / n_samples, time_iter / (batch_idx + 1) ))
-                scheduler.step()
-                return total_time_iter / (batch_idx + 1)
-            
+    def train(self, train_loader, optimizer, scheduler, epoch):
+
+      total_time_iter = 0
+      self.model.train()
+      start = time.time()
+      train_loss, n_samples = 0, 0
+      for batch_idx, data in enumerate(train_loader):
+          for i in range(len(data)):
+              data[i] = data[i].to(self.device)
+          optimizer.zero_grad()
+          output = self.model(data)
+          loss = self.loss_fn(output, data[4])
+          loss.backward()
+          optimizer.step()
+          time_iter = time.time() - start
+          total_time_iter += time_iter
+          train_loss += loss.item() * len(output)
+          n_samples += len(output)
+          if batch_idx % self.params["print_logger"] == 0 or batch_idx == len(train_loader) - 1:
+              print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} (avg: {:.6f}) \tsec/iter: {:.4f}'.format(
+                  epoch, n_samples, len(train_loader.dataset),
+                  100. * (batch_idx + 1) / len(train_loader), loss.item(), train_loss / n_samples, time_iter / (batch_idx + 1) ))
+      scheduler.step()
+      return total_time_iter / (batch_idx + 1)
+      
             # Test function
-            def test(test_loader):
-                print('Test model ...')
-                model.eval()
-                start = time.time()
-                test_loss, correct, n_samples = 0, 0, 0
-                for batch_idx, data in enumerate(test_loader):
-                    for i in range(len(data)):
-                        data[i] = data[i].to(device)
-                    if model_name == 'ExpandedSpatialGraphEmbeddingNet':
-                        output = model(data, fold_id, 'test')
-                    else:
-                        output = model(data)
-                    loss = loss_fn(output, data[4], reduction='sum')
-                    test_loss += loss.item()
-                    n_samples += len(output)
-                    pred = output.detach().cpu().max(1, keepdim=True)[1]
-    
-                    correct += pred.eq(data[4].detach().cpu().view_as(pred)).sum().item()
-    
-                time_iter = time.time() - start
-    
-                test_loss /= n_samples
-    
-                acc = 100. * correct / n_samples
-                print('Test set (epoch {}): Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(epoch, 
-                                                                                                      test_loss, 
-                                                                                                      correct, 
-                                                                                                      n_samples, acc))
-                return acc
+    def test(self, test_loader, epoch):
+
+      print('Test model ...')
+
+      self.model.eval()
+      test_loss, correct, n_samples = 0, 0, 0
+
+      for batch_idx, data in enumerate(test_loader):
+          for i in range(len(data)):
+            data[i] = data[i].to(self.device)
+          
+          output = self.model(data)
+          loss = self.loss_fn(output, data[4], reduction='sum')
+          test_loss += loss.item()
+          n_samples += len(output)
+          pred = output.detach().cpu().max(1, keepdim=True)[1]
+
+          correct += pred.eq(data[4].detach().cpu().view_as(pred)).sum().item()
+
+      test_loss /= n_samples
+
+      acc = 100. * correct / n_samples
+
+      print('Test set (epoch {}): Average loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(epoch, 
+                                                                                            test_loss, 
+                                                                                            correct, 
+                                                                                            n_samples, acc))
+      
+      return acc
             
-            # Loss function
-            loss_fn = F.cross_entropy
             
-            total_time = 0
-            for epoch in range(args.epochs):
-                total_time_iter = train(loaders[0])
-                total_time += total_time_iter
-                acc = test(loaders[1])
-            acc_folds.append(round(acc,2))
-            time_folds.append(round(total_time/args.epochs,2))
-            
-        print(acc_folds)
-        print('{}-fold cross validation avg acc (+- std): {} ({})'.format(args.n_folds, statistics.mean(acc_folds), statistics.stdev(acc_folds)))
+    def fit(self): 
+
+      for fold_id in range(self.params["n_folds"]):
+         
+        loaders, optimizer, scheduler = self.loaders_train_test_setup()
+
+        total_time = 0
+
+        for epoch in range(self.params["epochs"]):
+            total_time_iter = self.train(loaders[0], optimizer, scheduler, epoch)
+            total_time += total_time_iter
+            acc = self.test(self.loaders[1], epoch)
+
+        self.acc_folds.append(round(acc,2))
+
+        self.time_folds.append(round(total_time/self.params["epochs"],2))
+          
+        print(self.acc_folds)
+        print('{}-fold cross validation avg acc (+- std): {} ({})'.format(self.params["n_folds"], statistics.mean(self.acc_folds), statistics.stdev(self.acc_folds)))
         
         result_list = []
-        result_list.append(dataset_name)
-        result_list.append(readout_name)
-        for acc_fold in acc_folds:
+        result_list.append(self.params["dataset"])
+        result_list.append(self.params["dataset"])
+
+        for acc_fold in self.acc_folds:
           result_list.append(str(acc_fold))
-        result_list.append(statistics.mean(acc_folds))
-        result_list.append(statistics.stdev(acc_folds))
-        result_list.append(statistics.mean(time_folds))
-        
+
+        result_list.append(statistics.mean(self.acc_folds))
+        result_list.append(statistics.stdev(self.acc_folds))
+        result_list.append(statistics.mean(self.time_folds))
+      
