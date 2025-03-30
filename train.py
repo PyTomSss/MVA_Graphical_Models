@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import time
 import statistics
+from tqdm import tqdm
 
 import torch
 import torch.nn.functional as F
@@ -246,35 +247,28 @@ class Training:
       
       return acc
             
-            
+              
     def fit(self): 
+        for fold_id in tqdm(range(self.params["n_folds"]), desc="Folds", position=0, leave=True):
+            loaders, optimizer, scheduler = self.loaders_train_test_setup(fold_id)
+            total_time = 0
 
-      for fold_id in range(self.params["n_folds"]):
-         
-        loaders, optimizer, scheduler = self.loaders_train_test_setup(fold_id)
+            for epoch in tqdm(range(self.params["epochs"]), desc=f"Epochs (Fold {fold_id})", position=1, leave=False):
+                total_time_iter = self.train(loaders[0], optimizer, scheduler, epoch)
+                total_time += total_time_iter
+                acc = self.test(loaders[1], epoch)
 
-        total_time = 0
-
-        for epoch in range(self.params["epochs"]):
-            total_time_iter = self.train(loaders[0], optimizer, scheduler, epoch)
-            total_time += total_time_iter
-            acc = self.test(self.loaders[1], epoch)
-
-        self.acc_folds.append(round(acc,2))
-
-        self.time_folds.append(round(total_time/self.params["epochs"],2))
+            self.acc_folds.append(round(acc, 2))
+            self.time_folds.append(round(total_time / self.params["epochs"], 2))
           
-      print(self.acc_folds)
-      print('{}-fold cross validation avg acc (+- std): {} ({})'.format(self.params["n_folds"], statistics.mean(self.acc_folds), statistics.stdev(self.acc_folds)))
-      
-      result_list = []
-      result_list.append(self.params["dataset"])
-      result_list.append(self.params["dataset"])
-
-      for acc_fold in self.acc_folds:
-        result_list.append(str(acc_fold))
-
-      result_list.append(statistics.mean(self.acc_folds))
-      result_list.append(statistics.stdev(self.acc_folds))
-      result_list.append(statistics.mean(self.time_folds))
-      
+        print(self.acc_folds)
+        print('{}-fold cross validation avg acc (+- std): {} ({})'.format(
+            self.params["n_folds"], statistics.mean(self.acc_folds), statistics.stdev(self.acc_folds)))
+        
+        result_list = [self.params["dataset"], self.params["dataset"]]
+        result_list.extend(str(acc_fold) for acc_fold in self.acc_folds)
+        result_list.extend([
+            statistics.mean(self.acc_folds),
+            statistics.stdev(self.acc_folds),
+            statistics.mean(self.time_folds)
+        ])
