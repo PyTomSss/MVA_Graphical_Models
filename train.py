@@ -216,7 +216,7 @@ class Training:
       scheduler.step()
       return total_time_iter / (batch_idx + 1)
       
-            # Test function
+
     def test(self, test_loader, epoch):
 
       print('Test model ...')
@@ -265,17 +265,17 @@ class Training:
 
         self.time_folds.append(round(total_time/self.params["epochs"],2))
           
-        print(self.acc_folds)
-        print('{}-fold cross validation avg acc (+- std): {} ({})'.format(self.params["n_folds"], statistics.mean(self.acc_folds), statistics.stdev(self.acc_folds)))
-        
-        result_list = []
-        result_list.append(self.params["dataset"])
-        result_list.append(self.params["dataset"])
+      print(self.acc_folds)
+      print('{}-fold cross validation avg acc (+- std): {} ({})'.format(self.params["n_folds"], statistics.mean(self.acc_folds), statistics.stdev(self.acc_folds)))
+      
+      result_list = []
+      result_list.append(self.params["dataset"])
+      result_list.append(self.params["dataset"])
 
-        for acc_fold in self.acc_folds:
-          result_list.append(str(acc_fold))
+      for acc_fold in self.acc_folds:
+        result_list.append(str(acc_fold))
 
-        result_list.append(statistics.mean(self.acc_folds))
-        result_list.append(statistics.stdev(self.acc_folds))
-        result_list.append(statistics.mean(self.time_folds))
+      result_list.append(statistics.mean(self.acc_folds))
+      result_list.append(statistics.stdev(self.acc_folds))
+      result_list.append(statistics.mean(self.time_folds))
       
