@@ -1,7 +1,11 @@
 import torch.utils.data
 
-from .data import GraphBatch
+from datasets.data import GraphBatch
 
+
+
+def graph_collate_fn(data_list, follow_batch=[]):
+    return GraphBatch.from_data_list(data_list)
 
 class DataLoader(torch.utils.data.DataLoader):
     r"""Data loader qui merge les données en mini-batchs. 
@@ -22,6 +26,5 @@ class DataLoader(torch.utils.data.DataLoader):
             dataset,
             batch_size,
             shuffle,
-            collate_fn=lambda data_list: GraphBatch.from_data_list(
-                data_list, follow_batch),
+            collate_fn=lambda x: graph_collate_fn(x, follow_batch),
             **kwargs)

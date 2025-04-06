@@ -17,6 +17,7 @@ class GCN(nn.Module):
         # Graph convolution layer
         self.graph_convolution_layers = []
         for i in range(n_layer):
+           
            if i == 0:
              self.graph_convolution_layers.append(GraphConvolutionLayer(n_feat, agg_hidden, device))
            else:
@@ -25,7 +26,27 @@ class GCN(nn.Module):
         # Fully-connected layer
         self.fc1 = nn.Linear(agg_hidden, fc_hidden)
         self.fc2 = nn.Linear(fc_hidden, n_class)
-    
+
+    def forward(self, data):
+      x = data.x  # Features des noeuds [N, d]
+      edge_index = data.edge_index  # Arêtes [2, E]
+      #batch = data.batch  # Indice de batch pour chaque noeud [N]
+
+      for i in range(self.n_layer):
+          print(x.size())
+          x = F.relu(self.graph_convolution_layers[i](x, edge_index))
+          
+          if i != self.n_layer - 1:
+              x = F.dropout(x, p=self.dropout, training=self.training)
+
+      x = pooling_op(x, self.pool_type)
+
+      # Fully connected
+      x = F.relu(self.fc1(x))
+      x = self.fc2(x)  
+
+      return x
+    """
     def forward(self, data):
         x, adj = data[:2]
 
@@ -45,6 +66,7 @@ class GCN(nn.Module):
         x = F.softmax(self.fc2(x))
 
         return x
+    """
     
 
 class GAT(nn.Module):

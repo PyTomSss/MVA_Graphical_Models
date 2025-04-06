@@ -13,7 +13,7 @@ class GraphConvolutionLayer(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         
-        # Weight
+        # Initialisation des poids
         self.weight = nn.Parameter(torch.FloatTensor(in_features, out_features)).to(device)
         if bias:
             self.bias = nn.Parameter(torch.FloatTensor(out_features)).to(device)
@@ -27,8 +27,9 @@ class GraphConvolutionLayer(nn.Module):
         if self.bias is not None:
             self.bias.data.uniform_(-stdv, stdv)
 
+    
     def forward(self, x, adj):
-        x = x.reshape(x.size()[0] * x.size()[1], x.size()[2])
+        x = x.reshape(-1, x.size(1))
         x = torch.mm(x, self.weight)
         x = x.reshape(adj.size()[0], adj.size()[1], self.weight.size()[-1])
         output = torch.bmm(adj, x)
@@ -37,7 +38,7 @@ class GraphConvolutionLayer(nn.Module):
             return output + self.bias
         else:
             return output
-
+    
 
 ## 2. Graph Attention Layer
 
