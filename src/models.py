@@ -33,7 +33,7 @@ class GCN(nn.Module):
       #batch = data.batch  # Indice de batch pour chaque noeud [N]
 
       for i in range(self.n_layer):
-          print(x.size())
+    
           x = F.relu(self.graph_convolution_layers[i](x, edge_index))
           
           if i != self.n_layer - 1:

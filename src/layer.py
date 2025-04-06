@@ -31,6 +31,7 @@ class GraphConvolutionLayer(nn.Module):
     def forward(self, x, adj):
         x = x.reshape(-1, x.size(1))
         x = torch.mm(x, self.weight)
+        print(f"X SIZE : {x.size()}; WEIGHT SIZE : {self.weight.size()}, ADJ SIZE : {adj.size()}")
         x = x.reshape(adj.size()[0], adj.size()[1], self.weight.size()[-1])
         output = torch.bmm(adj, x)
         
