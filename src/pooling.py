@@ -9,6 +9,18 @@ def pooling_op(x, readout, batch=None, device=None):
     elif readout == 'sum':
       return torch.sum(x, dim=1).squeeze() # sum readout
   elif len(x.size()) == 2:
+
+    if batch is None:
+        # single graph, pas de batching
+        if readout == 'max':
+            return torch.max(x, dim=0)[0].squeeze()
+        elif readout == 'mean':
+            return torch.mean(x, dim=0).squeeze()
+        elif readout == 'sum':
+            return torch.sum(x, dim=0).squeeze()
+        else:
+            raise ValueError(f"Unknown readout type: {readout}")
+
     batch = batch.cpu().tolist()
     readouts = []
     max_batch = max(batch)

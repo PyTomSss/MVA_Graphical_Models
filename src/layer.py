@@ -6,7 +6,7 @@ import torch.nn.functional as F
 ### IN THIS FILE, WE DEFINE LAYERS THAT WILL BE USED IN MODELS.PY TO DEFINE GNNs
 
 ## 1. Graph Convolution Layer
-
+    
 class GraphConvolutionLayer(nn.Module):
     def __init__(self, in_features, out_features, device, bias=True):
         super(GraphConvolutionLayer, self).__init__()
@@ -22,56 +22,13 @@ class GraphConvolutionLayer(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        stdv = 1. / math.sqrt(self.weight.size(1))
-        self.weight.data.uniform_(-stdv, stdv)
+        nn.init.xavier_uniform_(self.weight)
         if self.bias is not None:
-            self.bias.data.uniform_(-stdv, stdv)
-
+            nn.init.zeros_(self.bias)
     
     def forward(self, x, adj):
-        x = x.reshape(-1, x.size(1))
-        x = torch.mm(x, self.weight)
-        print(f"X SIZE : {x.size()}; WEIGHT SIZE : {self.weight.size()}, ADJ SIZE : {adj.size()}")
-        x = x.reshape(adj.size()[0], adj.size()[1], self.weight.size()[-1])
-        output = torch.bmm(adj, x)
-        
-        if self.bias is not None:
-            return output + self.bias
-        else:
-            return output
-    
-
-## 2. Graph Attention Layer
-
-
-class GraphAttentionLayer(nn.Module):
-    def __init__(self, in_features, out_features, dropout, device):
-        super(GraphAttentionLayer, self).__init__()
-        self.in_features = in_features  # Number of input features
-        self.out_features = out_features  # Number of output features
-        self.dropout = dropout  # Dropout rate for attention weights
-        
-        # Learnable weight matrix for feature transformation
-        self.weight = nn.Parameter(torch.FloatTensor(in_features, out_features)).to(device)
-        # Learnable weight vector for computing attention coefficients
-        self.weight2 = nn.Parameter(torch.zeros(size=(2 * out_features, 1))).to(device)
-        
-        # Initialize parameters
-        self.reset_parameters()
-
-    def reset_parameters(self):
         """
-        Initializes the learnable parameters using a uniform distribution.
-        """
-        stdv = 1. / math.sqrt(self.weight.size(1))
-        self.weight.data.uniform_(-stdv, stdv)
-
-        stdv = 1. / math.sqrt(self.weight2.size(1))
-        self.weight2.data.uniform_(-stdv, stdv)
-                        
-    def forward(self, x, adj):
-        """
-        Forward pass for the Graph Attention Layer.
+        Forward pass for the Graph Convolutional Layer.
 
         Args:
             x (torch.Tensor): Input feature matrix of shape (batch_size, num_nodes, in_features).
@@ -80,30 +37,71 @@ class GraphAttentionLayer(nn.Module):
         Returns:
             torch.Tensor: Output feature matrix after attention mechanism.
         """
-        batch_size = x.size(0)
-        node_count = x.size(1)
+        support = torch.mm(x, self.weight)         # [N, out_features]
+        output = torch.mm(adj, support)            # [N, out_features]
+        if self.bias is not None:
+            output += self.bias
+        return output
+
+## 2. Graph Attention Layer
+
+class GraphAttentionLayer(nn.Module):
+    def __init__(self, in_features, out_features, dropout, device, alpha=0.2, bias=True):
+        super(GraphAttentionLayer, self).__init__()
+        self.in_features = in_features
+        self.out_features = out_features
+        self.dropout = dropout
+        self.device = device
+
+        # Linear transformation
+        self.W = nn.Parameter(torch.empty(size=(in_features, out_features), device=device))
         
-        # Reshape input and apply linear transformation
-        x = x.reshape(batch_size * node_count, x.size(2))
-        x = torch.mm(x, self.weight)  # Linear transformation
-        x = x.reshape(batch_size, node_count, self.weight.size(-1))
-        
-        # Compute attention scores
-        attention_input = torch.cat([
-            x.repeat(1, 1, node_count).view(batch_size, node_count * node_count, -1),  # Repeating x along nodes
-            x.repeat(1, node_count, 1)  # Repeating x along feature dimension
-        ], dim=2).view(batch_size, node_count, -1, 2 * self.out_features)  # Concatenation for attention
-        
-        e = F.relu(torch.matmul(attention_input, self.weight2).squeeze(3))  # Compute raw attention scores
-        zero_vec = -9e15 * torch.ones_like(e)  # Masking for non-existent edges (very negative values)
-        attention = torch.where(adj > 0, e, zero_vec)  # Apply adjacency mask
-        attention = F.softmax(attention, dim=2)  # Normalize attention scores
-        attention = F.dropout(attention, self.dropout, training=self.training)  # Apply dropout to attention
-        
-        # Compute new node features using weighted sum
-        x = torch.bmm(attention, x)  # Matrix multiplication of attention weights with transformed features
-        
-        return x
+        # Attention mechanism
+        self.a = nn.Parameter(torch.empty(size=(2 * out_features, 1), device=device))
+
+        if bias:
+            self.bias = nn.Parameter(torch.FloatTensor(out_features, device=device))
+        else:
+            self.register_parameter('bias', None)
+
+        self.leakyrelu = nn.LeakyReLU(alpha)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.W)
+        nn.init.xavier_uniform_(self.a)
+        if self.bias is not None:
+            nn.init.zeros_(self.bias)
+
+    def forward(self, x, adj):
+        """
+        x: [N, in_features]
+        adj: [N, N]
+        """
+        N = x.size(0)
+
+        h = torch.mm(x, self.W)  # [N, out_features]
+
+        # Prepare attention mechanism input (all pairwise combinations)
+        a_input = torch.cat([
+            h.repeat(1, N).view(N * N, -1),        # h_i
+            h.repeat(N, 1)                          # h_j
+        ], dim=1).view(N, N, 2 * self.out_features)
+
+        e = self.leakyrelu(torch.matmul(a_input, self.a).squeeze(2))  # [N, N]
+
+        # Masked attention: remove non-edges
+        zero_vec = -9e15 * torch.ones_like(e)
+        attention = torch.where(adj > 0, e, zero_vec)
+        attention = F.softmax(attention, dim=1)  # Normalize
+        attention = F.dropout(attention, self.dropout, training=self.training)
+
+        h_prime = torch.matmul(attention, h)  # [N, out_features]
+
+        if self.bias is not None:
+            h_prime += self.bias
+
+        return h_prime
 
 
 ## 3. Graph Dense Net

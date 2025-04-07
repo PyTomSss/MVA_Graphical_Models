@@ -14,6 +14,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 from src.models import GCN, GAT, GraphDenseNet
 
 from src.graphdata import DataReader, GraphData
+from utils.utils import create_batch_from_loader
 
 
 '''

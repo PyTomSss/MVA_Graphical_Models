@@ -5,6 +5,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -47,6 +48,12 @@ def get_max_num_nodes(dataset_str):
     plt.show()
 """
 
+def normalize_adjacency(A):
+    I = torch.eye(A.size(0)).to(A.device)
+    A_hat = A + I  # Add self-loops
+    D_hat = torch.diag(torch.sum(A_hat, dim=1) ** -0.5)
+    return torch.mm(torch.mm(D_hat, A_hat), D_hat)  # D^(-1/2) * A * D^(-1/2)
+
 
 def get_adjacency_and_features(graph_data):
     """
@@ -80,4 +87,31 @@ def get_adjacency_and_features(graph_data):
     for i in range(len(edge_index[0])):
         adj_matrix[edge_index[0][i], edge_index[1][i]] = 1
 
-    return adj_matrix, features
+    A = normalize_adjacency(adj_matrix)
+
+    return A, features
+
+def create_batch_from_loader(batch_indices, x_dataset, y_dataset, device="cpu"):
+
+    all_adjs, all_x, all_y, sizes = [], [], [], []
+    node_offset = 0
+
+    for idx in batch_indices:
+        data = x_dataset[idx]
+        y = y_dataset[idx]
+
+        adj, x = get_adjacency_and_features(data)  # adj: [N, N], x: [N, F]
+        N = x.shape[0]
+
+        # Décalage dans la matrice d'adjacence
+        all_adjs.append(F.pad(adj, (node_offset, 0, node_offset, 0)))  # pad gauche/haut
+        all_x.append(x)
+        all_y.append(torch.tensor([y], dtype=torch.long))
+        sizes.append(N)
+        node_offset += N
+
+    x_batch = torch.cat(all_x, dim=0).to(device)                      # [N_total, F]
+    adj_batch = torch.block_diag(*all_adjs).to(device)               # [N_total, N_total]
+    y_batch = torch.cat(all_y, dim=0).to(device)                     # [B] ou [B, 1]
+
+    return x_batch, adj_batch, y_batch, sizes

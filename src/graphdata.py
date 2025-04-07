@@ -642,7 +642,7 @@ class GraphData(torch.utils.data.Dataset):
                                           N_nodes,
                                           int(self.labels[index]),
                                           int(self.max_neighbor_list[index]),
-                                          self.pad(self.random_walks[index])])                           
+                                          self.pad(self.random_walks[index], self.max_random_walk)])                           
         else:
             return self.nested_list_to_torch([self.pad(self.features_onehot[index].copy(), self.N_nodes_max),  # Node_features
                                           self.pad(self.adj_list[index], self.N_nodes_max, self.N_nodes_max),  # Adjacency matrix
