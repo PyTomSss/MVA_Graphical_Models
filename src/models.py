@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils.utils import get_adjacency_and_features
+from torch_geometric.nn import SAGEConv
 
-from src.layer import GraphConvolutionLayer, GraphAttentionLayer, GraphDenseNetLayer
+from src.layer import GraphConvolutionLayer, GraphAttentionLayer, GraphDenseNetLayer, GINLayer
 from src.pooling import pooling_op
 
 
@@ -63,6 +64,7 @@ class GAT(nn.Module):
     def __init__(self, n_feat, n_class, n_layer, agg_hidden, fc_hidden, dropout, pool_type, device, alpha=0.2):
         super(GAT, self).__init__()
 
+
         self.n_layer = n_layer
         self.dropout = dropout
         self.pool_type = pool_type
@@ -87,7 +89,7 @@ class GAT(nn.Module):
             x_layers.append(x_layer)
 
         # Concaténation des sorties de chaque couche d'attention
-        x = torch.cat(x_layers, dim=2)  # Concatène sur la dimension des caractéristiques
+        x = torch.cat(x_layers, dim=1)  # Concatène sur la dimension des caractéristiques
 
         # Pooling (en fonction du type de pooling choisi)
         x = pooling_op(x, self.pool_type)  # Devrait retourner [B, agg_hidden] ou [agg_hidden]
@@ -98,7 +100,43 @@ class GAT(nn.Module):
         
         return x
 
-    
+class GraphSAGE(nn.Module):
+    def __init__(self, n_feat, n_class, n_layer, agg_hidden, fc_hidden, dropout, pool_type, device):
+        super(GraphSAGE, self).__init__()
+
+        self.n_layer = n_layer
+        self.dropout = dropout
+        self.pool_type = pool_type
+
+        # Initialisation des couches SAGE
+        self.graphsage_layers = nn.ModuleList()
+        for i in range(n_layer):
+            in_dim = n_feat if i == 0 else agg_hidden
+            self.graphsage_layers.append(SAGEConv(in_dim, agg_hidden))
+
+        # Couches fully-connected
+        self.fc1 = nn.Linear(agg_hidden * n_layer, fc_hidden)  # Concaténation des sorties des couches
+        self.fc2 = nn.Linear(fc_hidden, n_class)
+
+    def forward(self, x, edge_index, batch=None):
+        # Propagation à travers les couches GraphSAGE
+        x_layers = []
+        for i in range(self.n_layer):
+            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = F.relu(self.graphsage_layers[i](x, edge_index))
+            x_layers.append(x)
+
+        # Concaténation des sorties des couches
+        x = torch.cat(x_layers, dim=1)  # Concaténation sur les features
+
+        # Pooling (en fonction du type choisi)
+        x = pooling_op(x, self.pool_type, batch)
+
+        # Fully connected layers
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+
+        return x
 
 class GraphDenseNet(nn.Module):
     def __init__(self, n_feat, n_class, n_layer, agg_hidden, fc_hidden, dropout, pool_type, device):
@@ -147,4 +185,36 @@ class GraphDenseNet(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.softmax(self.fc2(x))
 
+        return x
+    
+
+class GIN(nn.Module):
+    def __init__(self, n_feat, n_class, n_layer, agg_hidden, fc_hidden, dropout, pool_type, device):
+        super(GIN, self).__init__()
+
+        self.n_layer = n_layer
+        self.dropout = dropout
+        self.pool_type = pool_type
+        self.device = device
+
+        self.gin_layers = nn.ModuleList()
+        for i in range(n_layer):
+            in_dim = n_feat if i == 0 else agg_hidden
+            self.gin_layers.append(GINLayer(in_dim, agg_hidden, device))
+
+        self.fc1 = nn.Linear(agg_hidden, fc_hidden).to(device)
+        self.fc2 = nn.Linear(fc_hidden, n_class).to(device)
+
+    def forward(self, x, adj):
+        x = x.to(self.device)
+        adj = adj.to(self.device)
+
+        for i in range(self.n_layer):
+            x = F.relu(self.gin_layers[i](x, adj))
+            if i != self.n_layer - 1:
+                x = F.dropout(x, p=self.dropout, training=self.training)
+
+        x = pooling_op(x, self.pool_type)  # [1, agg_hidden]
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
         return x

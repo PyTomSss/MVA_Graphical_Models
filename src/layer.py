@@ -48,16 +48,19 @@ class GraphConvolutionLayer(nn.Module):
 class GraphAttentionLayer(nn.Module):
     def __init__(self, in_features, out_features, dropout, device, alpha=0.2, bias=True):
         super(GraphAttentionLayer, self).__init__()
+
+        print(f"[DEBUG] GraphAttentionLayer: W shape = ({in_features}, {out_features})")
+
         self.in_features = in_features
         self.out_features = out_features
         self.dropout = dropout
         self.device = device
 
         # Linear transformation
-        self.W = nn.Parameter(torch.empty(size=(in_features, out_features), device=device))
+        self.W = nn.Parameter(torch.FloatTensor(in_features, out_features)).to(device)
         
         # Attention mechanism
-        self.a = nn.Parameter(torch.empty(size=(2 * out_features, 1), device=device))
+        self.a = nn.Parameter(torch.FloatTensor(2 * out_features, 1)).to(device)
 
         if bias:
             self.bias = nn.Parameter(torch.FloatTensor(out_features, device=device))
@@ -147,3 +150,24 @@ class GraphDenseNetLayer(nn.Module):
         concat2 = torch.cat((x, concat1, x2), 2)
         
         return concat2
+    
+
+# 4. GIN 
+
+class GINLayer(nn.Module):
+    def __init__(self, in_features, out_features, device, eps=0.0):
+        super(GINLayer, self).__init__()
+        self.device = device
+        self.eps = nn.Parameter(torch.Tensor([eps]))  # Learnable epsilon
+        self.mlp = nn.Sequential(
+            nn.Linear(in_features, out_features),
+            nn.ReLU(),
+            nn.Linear(out_features, out_features)
+        ).to(device)
+
+    def forward(self, x, adj):
+        # Sum aggregation
+        agg = torch.matmul(adj, x)  # [N, F]
+        out = (1 + self.eps) * x + agg
+        out = self.mlp(out)
+        return out
