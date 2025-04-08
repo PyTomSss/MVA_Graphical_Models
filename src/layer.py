@@ -49,8 +49,6 @@ class GraphAttentionLayer(nn.Module):
     def __init__(self, in_features, out_features, dropout, device, alpha=0.2, bias=True):
         super(GraphAttentionLayer, self).__init__()
 
-        print(f"[DEBUG] GraphAttentionLayer: W shape = ({in_features}, {out_features})")
-
         self.in_features = in_features
         self.out_features = out_features
         self.dropout = dropout
@@ -82,7 +80,7 @@ class GraphAttentionLayer(nn.Module):
         adj: [N, N]
         """
         N = x.size(0)
-        print(self.W.shape)
+
         h = torch.mm(x, self.W)  # [N, out_features]
         # Prepare attention mechanism input (all pairwise combinations)
         a_input = torch.cat([
