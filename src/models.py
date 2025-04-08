@@ -18,7 +18,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import SAGEConv
 
-from src.layer import GraphConvolutionLayer, GraphAttentionLayer, GraphDenseNetLayer, GINLayer
+from src.layer import GraphConvolutionLayer, GraphAttentionLayer, GINLayer
 from src.pooling import pooling_op
 
 # ==============================================================================
