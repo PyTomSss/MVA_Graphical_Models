@@ -82,9 +82,8 @@ class GraphAttentionLayer(nn.Module):
         adj: [N, N]
         """
         N = x.size(0)
-
+        print(self.W.shape)
         h = torch.mm(x, self.W)  # [N, out_features]
-
         # Prepare attention mechanism input (all pairwise combinations)
         a_input = torch.cat([
             h.repeat(1, N).view(N * N, -1),        # h_i

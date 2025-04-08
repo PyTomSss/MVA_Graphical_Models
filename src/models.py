@@ -87,6 +87,7 @@ class GAT(nn.Module):
             x = F.dropout(x, p=self.dropout, training=self.training)
             x_layer = F.relu(self.graph_attention_layers[i](x, adj))
             x_layers.append(x_layer)
+            x = x_layer
 
         # Concaténation des sorties de chaque couche d'attention
         x = torch.cat(x_layers, dim=1)  # Concatène sur la dimension des caractéristiques
