@@ -20,10 +20,11 @@ import numpy as np
 from src.models import GCN, GAT, GraphSAGE, GIN
 import time
 from utils.utils import get_adjacency_and_features
+from datasets.dataset import GraphDatasetSubset
 
 
 class Train:
-    def __init__(self, params):
+    def __init__(self, params, data = None):
         """
         Initialize the Trainer class with the provided parameters.
 
@@ -68,7 +69,11 @@ class Train:
         self.params = params
 
         # Extract the graph data and their corresponding labels
-        self.x_dataset, self.y_dataset = self.dataset.dataset.get_data(), self.dataset.dataset.get_targets()
+        if data: 
+            self.x_dataset, self.y_dataset = data, data.get_targets()
+            print(f"taille de x_dataset: {len(self.x_dataset)} et taille de y_dataset : {len(self.y_dataset)}")
+        else: 
+            self.x_dataset, self.y_dataset = self.dataset.dataset.get_data(), self.dataset.dataset.get_targets()
 
         # Select device (GPU if available and requested, else CPU)
         if self.params["cuda"] and torch.cuda.is_available():
@@ -202,6 +207,7 @@ class Train:
         start = time.time()
 
         for batch_idx, data_batch in enumerate(train_loader):
+            
             idx = data_batch[0]  # Extract index
 
             x = self.x_dataset[idx]
@@ -232,15 +238,15 @@ class Train:
             train_loss += loss.item()
             n_samples += 1
 
-            if batch_idx % self.params["print_logger"] == 0 or batch_idx == len(train_loader) - 1:
-                print(f'Train Epoch: {epoch} [{n_samples}/{len(train_loader.dataset)} ({100. * (batch_idx + 1) / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f} (avg: {train_loss / n_samples:.6f}) \tsec/iter: {time_iter / (batch_idx + 1):.4f}')
+            #if batch_idx % self.params["print_logger"] == 0 or batch_idx == len(train_loader) - 1:
+                #print(f'Train Epoch: {epoch} [{n_samples}/{len(train_loader.dataset)} ({100. * (batch_idx + 1) / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f} (avg: {train_loss / n_samples:.6f}) \tsec/iter: {time_iter / (batch_idx + 1):.4f}')
 
             start = time.time()  # Reset timer
 
         scheduler.step()  # Adjust learning rate
         return total_time_iter / (len(train_loader) + 1)
 
-    def evaluate(self, test_loader):
+    def evaluate(self, test_loader, graphDATA = False):
         """
         Evaluate the model on the test set.
 
@@ -253,33 +259,73 @@ class Train:
         self.model.eval()
         correct, n_samples = 0, 0
 
-        with torch.no_grad():
-            for batch_idx, data_batch in enumerate(test_loader):
-                idx = data_batch[0]
-                x = self.x_dataset[idx]
-                y = self.y_dataset[idx]
+        if graphDATA: 
+            _loader = torch.utils.data.DataLoader(
+            range(len(test_loader)),
+            batch_size=1,
+            shuffle=True,
+            num_workers=0,
+            pin_memory=True,
+            drop_last=False,
+            collate_fn=lambda x: x  # x will be a list of one index
+            ) 
 
-                if self.params["model_type"] == "GraphSAGE":
-                    output = self.model(x)
-                else:
-                    A, f = get_adjacency_and_features(x)
-                    A = A.to(self.device)
-                    f = f.to(self.device)
-                    y = torch.tensor([y], device=self.device)
+            targets = test_loader.get_targets()
+            
+            with torch.no_grad():
+                for batch_idx, data_batch in enumerate(_loader):
+                    idx = data_batch[0]
+                    x = test_loader[idx]
+                    y = targets[idx]
 
-                    output = self.model(f, A)
+                    if self.params["model_type"] == "GraphSAGE":
+                        output = self.model(x)
+                    else:
+                        A, f = get_adjacency_and_features(x)
+                        A = A.to(self.device)
+                        f = f.to(self.device)
+                        y = torch.tensor([y], device=self.device)
 
-                # Prediction: binary or multi-class
-                if output.shape[-1] == 1:
-                    pred = (torch.sigmoid(output) > 0.5).long()
-                else:
-                    pred = output.argmax(dim=-1)
+                        output = self.model(f, A)
 
-                correct += (pred == y).sum().item()
-                n_samples += 1
+                    # Prediction: binary or multi-class
+                    if output.shape[-1] == 1:
+                        pred = (torch.sigmoid(output) > 0.5).long()
+                    else:
+                        pred = output.argmax(dim=-1)
+
+                    correct += (pred == y).sum().item()
+                    n_samples += 1
+
+        else: 
+            with torch.no_grad():
+                for batch_idx, data_batch in enumerate(test_loader):
+                    idx = data_batch[0]
+                    x = self.x_dataset[idx]
+                    y = self.y_dataset[idx]
+
+                    if self.params["model_type"] == "GraphSAGE":
+                        output = self.model(x)
+                    else:
+                        A, f = get_adjacency_and_features(x)
+                        A = A.to(self.device)
+                        f = f.to(self.device)
+                        y = torch.tensor([y], device=self.device)
+
+                        output = self.model(f, A)
+
+                    # Prediction: binary or multi-class
+                    if output.shape[-1] == 1:
+                        pred = (torch.sigmoid(output) > 0.5).long()
+                    else:
+                        pred = output.argmax(dim=-1)
+
+                    correct += (pred == y).sum().item()
+                    n_samples += 1
 
         acc = 100. * correct / n_samples
-        print(f'Test set (epoch {self.params["epochs"]}): Accuracy: {correct}/{n_samples} ({acc:.2f}%)\n')
+        #print(f'Test set (epoch {self.params["epochs"]}): Accuracy: {correct}/{n_samples} ({acc:.2f}%)\n')
+        print(f'Accuracy: {correct}/{n_samples} ({acc:.2f}%)\n')
 
         return acc
 
@@ -313,6 +359,6 @@ class Train:
                 break
 
         print(f'Best Accuracy: {best_acc:.2f}%')
-        print(f'Average training time per epoch: {total_time / (epoch + 1):.2f} seconds')
+        print(f'Average training time per epoch AND PER DATA???: {total_time / (epoch + 1):.2f} seconds')
 
         return [self.params["dataset"], self.params["dataset"], best_acc]
