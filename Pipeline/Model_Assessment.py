@@ -2,10 +2,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from Model_Selection import ModelSelection
-from Pipeline.Train import Train
+from Pipeline.Model_Selection import ModelSelection
+from Pipeline.train import Train
 from datasets.dataset import GraphDatasetSubset
 
+
+# ------------------------------------------------------------------------
+# Class: Holdout
+# Description: Performs a simple holdout split of the training data,
+# used for inner evaluation during model assessment.
+# ------------------------------------------------------------------------
 
 class Holdout(): 
     def __init__(self, DATASET, train_split, train_size=0.9): 
@@ -28,10 +34,17 @@ class Holdout():
         return self.train_indices
     
 
+# ------------------------------------------------------------------------
+# Class: ModelAssessment
+# Description: Implements Nested Cross-Validation:
+# 1. Outer loop: K-Fold for generalization performance
+# 2. Inner loop: ModelSelection + Holdout for risk estimation
+# ------------------------------------------------------------------------
+
 
 class ModelAssessment(): 
     
-    def __init__(self, DATASET, grid, Kfold=10, holdout=3): 
+    def __init__(self, DATASET, grid, Kfold=10, holdout=3, random_search=False): 
         self.DATASET = DATASET
         self.grid = grid
         self.Kfold = Kfold
@@ -39,6 +52,7 @@ class ModelAssessment():
         self.splits = DATASET.splits
         self.holdout = holdout
         self.fold_accuracy = []
+        self.random_search = random_search
 
     def assess(self):
 
@@ -47,7 +61,7 @@ class ModelAssessment():
             test_data_idxs = self.splits[i]["test"]
             test_data = GraphDatasetSubset(self.DATASET.dataset.get_data(), test_data_idxs)
 
-            model_selection = ModelSelection(self.DATASET, train_data_idxs, self.grid.copy())
+            model_selection = ModelSelection(self.DATASET, train_data_idxs, self.grid.copy(), random_search=self.random_search)
             model_selection.fit()
             best_config, _ = model_selection.get_best_config()
             self.best_configs = best_config

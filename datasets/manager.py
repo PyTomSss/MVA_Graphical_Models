@@ -354,3 +354,9 @@ class IMDBBinary(TUDatasetManager):
     _dim_features = 1
     _dim_target = 2
     max_num_nodes = 136
+
+class PROTEINS(TUDatasetManager):
+    name = "PROTEINS"
+    _dim_features = 3
+    _dim_target = 2
+    max_num_nodes = 620

@@ -1,11 +1,12 @@
 import json
 import networkx as nx
-#from torch_geometric.utils import to_networkx
-#from torch_geometric.data import Data
+from torch_geometric.utils import to_networkx
+from torch_geometric.data import Data
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
+from datasets.data import GraphData
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -29,24 +30,35 @@ def get_max_num_nodes(dataset_str):
         max_num_nodes = max(max_num_nodes, d.num_nodes)
     return max_num_nodes
 
-"""def visualise_graph(index, dataset):
-    ""
+def visualise_graph(index, dataset):
+    """
     Idea: Visualise 
 
     Args:
         index (int): index of the graph in the dataset we want to visualise
         dataset (IMDB or DD): dataset of graphs
-    ""
+    """
 
-    data = GraphData(x=dataset[index].x, edge_index=dataset[index].edge_index)
+    data = Data(x=dataset[index].x, edge_index=dataset[index].edge_index)
     graph = to_networkx(data, to_undirected=True)
 
     # Visualisation
-    plt.figure(figsize=(10, 7))
-    nx.draw(graph, node_size=30, with_labels=False)
-    plt.title(f"Graph Visualization - Index {index}")  # Add title here
+    plt.figure(figsize=(12, 8))
+    pos = nx.spring_layout(graph, seed=42) 
+    nx.draw_networkx_edges(graph, pos, alpha=0.3)
+    nx.draw_networkx_nodes(
+        graph,
+        pos,
+        node_size=100,
+        cmap=plt.cm.viridis,
+        alpha=0.9
+    )
+
+    plt.title(f"Graph Visualization - Index {index}", fontsize=15)
+    plt.axis('off')  # Enlève les axes pour une vue plus propre
+    plt.tight_layout()
     plt.show()
-"""
+
 
 def normalize_adjacency(A):
     I = torch.eye(A.size(0)).to(A.device)

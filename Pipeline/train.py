@@ -71,7 +71,7 @@ class Train:
         # Extract the graph data and their corresponding labels
         if data: 
             self.x_dataset, self.y_dataset = data, data.get_targets()
-            print(f"taille de x_dataset: {len(self.x_dataset)} et taille de y_dataset : {len(self.y_dataset)}")
+            #print(f"taille de x_dataset: {len(self.x_dataset)} et taille de y_dataset : {len(self.y_dataset)}")
         else: 
             self.x_dataset, self.y_dataset = self.dataset.dataset.get_data(), self.dataset.dataset.get_targets()
 
@@ -173,7 +173,7 @@ class Train:
 
         # Count and display number of trainable parameters
         c = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        print('N trainable parameters:', c)
+        #print('N trainable parameters:', c)
 
         # Define Adam optimizer with weight decay
         optimizer = optim.Adam(
@@ -244,7 +244,7 @@ class Train:
             start = time.time()  # Reset timer
 
         scheduler.step()  # Adjust learning rate
-        return total_time_iter / (len(train_loader) + 1)
+        return total_time_iter #/ (len(train_loader) + 1)
 
     def evaluate(self, test_loader, graphDATA = False):
         """
@@ -325,7 +325,7 @@ class Train:
 
         acc = 100. * correct / n_samples
         #print(f'Test set (epoch {self.params["epochs"]}): Accuracy: {correct}/{n_samples} ({acc:.2f}%)\n')
-        print(f'Accuracy: {correct}/{n_samples} ({acc:.2f}%)\n')
+        #print(f'Accuracy: {correct}/{n_samples} ({acc:.2f}%)\n')
 
         return acc
 
@@ -358,7 +358,7 @@ class Train:
                 print(f"Early stopping triggered after {epoch + 1} epochs.")
                 break
 
-        print(f'Best Accuracy: {best_acc:.2f}%')
-        print(f'Average training time per epoch AND PER DATA???: {total_time / (epoch + 1):.2f} seconds')
+        #print(f'Accuracy when Early Stopping: {best_acc:.2f}%')
+        print(f'Average training time per epoch: {total_time / (epoch + 1):.2f} seconds \n')
 
         return [self.params["dataset"], self.params["dataset"], best_acc]

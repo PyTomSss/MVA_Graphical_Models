@@ -1,7 +1,12 @@
 import itertools
 import random
 from datasets.dataset import GraphDatasetSubset
-from Pipeline.Train import Train
+from Pipeline.train import Train
+
+# ------------------------------------------------------------------------
+# Class: grid
+# Description: Generates all combinations of hyperparameters from a grid.
+# ------------------------------------------------------------------------
 
 class grid: 
     
@@ -13,9 +18,14 @@ class grid:
         return [dict(zip(keys, v)) for v in itertools.product(*values)]
 
     def __repr__(self):
-        return f"HyperparameterGrid({self.param_dict})"
+        return f"HyperparameterGrid({self.params_dict})"
     
 
+# ------------------------------------------------------------------------
+# Class: ModelSelection
+# Description: Performs model selection by testing different hyperparameter
+# configurations (via Grid Search or Random Search) on a validation set.
+# ------------------------------------------------------------------------
 
 class ModelSelection(): 
     
@@ -41,18 +51,17 @@ class ModelSelection():
             combinations_to_try = all_combinations
 
         for config in combinations_to_try:
-            print(f"Training with configuration: {config}")
+            print(f"[Model Selection] - Training with configuration: {config} \n")
             params = self.grid
             params["lr"] = config["lr"]
+            
             params["num_lay"] = config["num_lay"]
             params["hidden_agg_lay_size"] = config["hidden_agg_lay_size"]
 
-            print(len(self.train_split))
+
             trainer = Train(params, data = self.train_split)
             trainer.fit()
             accuracy = trainer.evaluate(self.validation_split, graphDATA = True)
-
-            print(f"Validation accuracy: {accuracy}")
 
             if self.best_config is None or accuracy > self.best_config["accuracy"]:
                 self.best_config = {"config": params, "accuracy": accuracy}
